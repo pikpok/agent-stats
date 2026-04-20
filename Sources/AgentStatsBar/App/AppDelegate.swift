@@ -10,8 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         let model = AppModel()
         self.model = model
-        let dashboardWindowController = DashboardWindowController(model: model)
-        self.dashboardWindowController = dashboardWindowController
         statusItemController = StatusItemController(model: model) { [weak self] in
             self?.showDashboard(nil)
         }
@@ -23,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc
     func showDashboard(_ sender: Any?) {
+        if dashboardWindowController == nil, let model {
+            dashboardWindowController = DashboardWindowController(model: model)
+        }
         dashboardWindowController?.show()
     }
 }

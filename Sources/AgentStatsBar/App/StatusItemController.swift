@@ -7,12 +7,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let model: AppModel
     private let statusItem: NSStatusItem
     private let hostingController: NSHostingController<MenuBarView>
-    private let statusContentView = MenuBarStatusContentView()
     private var popover: NSPopover?
     private weak var activeButton: NSStatusBarButton?
     private var localClickMonitor: Any?
     private var globalClickMonitor: Any?
     private var statusItemRefreshScheduled = false
+    private var lastRenderedItems: [MenuBarServiceItem] = []
+    private var lastRenderedWarning = false
     private var cancellables: Set<AnyCancellable> = []
 
     init(model: AppModel, openDashboard: @escaping () -> Void) {
@@ -91,17 +92,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         button.action = #selector(togglePopover(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.title = ""
-        button.image = nil
-
-        statusContentView.translatesAutoresizingMaskIntoConstraints = false
-        button.addSubview(statusContentView)
-
-        NSLayoutConstraint.activate([
-            statusContentView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-            statusContentView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-            statusContentView.topAnchor.constraint(equalTo: button.topAnchor),
-            statusContentView.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-        ])
+        button.imagePosition = .imageOnly
     }
 
     private func bindModel() {
@@ -119,8 +110,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func scheduleStatusItemRefresh() {
-        updateStatusItem()
-
         guard !statusItemRefreshScheduled else {
             return
         }
@@ -142,26 +131,31 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             return
         }
 
-        button.image = nil
-        button.title = ""
-        button.attributedTitle = NSAttributedString()
+        let items = model.menuBarItems
+        let showWarning = model.shouldShowMenuBarSymbol
+
+        let itemsChanged = items.map(\.valueText) != lastRenderedItems.map(\.valueText)
+            || items.map(\.service) != lastRenderedItems.map(\.service)
+        let warningChanged = showWarning != lastRenderedWarning
+
+        guard itemsChanged || warningChanged else {
+            return
+        }
+
+        lastRenderedItems = items
+        lastRenderedWarning = showWarning
+
+        let warningImage = showWarning ? makeWarningImage(pointSize: 10) : nil
+        let rendered = MenuBarStatusRenderer.render(items: items, warningImage: warningImage)
+
+        button.image = rendered
         button.toolTip = model.menuBarTitle
         button.setAccessibilityTitle(model.menuBarTitle)
 
-        statusContentView.update(
-            items: model.menuBarItems,
-            warningImage: model.shouldShowMenuBarSymbol ? makeWarningImage(pointSize: 10) : nil
-        )
-
-        statusItem.length = measuredStatusItemLength()
-        button.invalidateIntrinsicContentSize()
-        button.needsLayout = true
-        button.needsDisplay = true
-        button.superview?.needsLayout = true
-        button.superview?.needsDisplay = true
-        button.window?.contentView?.needsLayout = true
-        button.window?.contentView?.needsDisplay = true
-        button.window?.displayIfNeeded()
+        let newLength = ceil(rendered.size.width)
+        if statusItem.length != newLength {
+            statusItem.length = newLength
+        }
     }
 
     private func makeWarningImage(pointSize: CGFloat) -> NSImage? {
@@ -174,10 +168,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
         image.isTemplate = true
         return image
-    }
-
-    private func measuredStatusItemLength() -> CGFloat {
-        ceil(statusContentView.preferredWidth)
     }
 
     private func installOutsideClickMonitors() {

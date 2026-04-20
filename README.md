@@ -9,6 +9,12 @@ A lightweight macOS menu bar app for tracking **Codex**, **Claude Code**, and **
 
 Agent Stats is built for people who use more than one AI coding tool and want one fast place to check limits, resets, and current usage without bouncing between separate apps and dashboards.
 
+## Screenshots
+
+| Menu bar | Popover | Dashboard |
+| --- | --- | --- |
+| ![Menu bar](docs/screenshots/menubar.png) | ![Popover](docs/screenshots/popover.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+
 ## Why install it?
 
 - **One place for three services** instead of checking each app separately.

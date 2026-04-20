@@ -3,7 +3,19 @@ import SwiftUI
 
 @MainActor
 enum ServiceIconRenderer {
+    private struct CacheKey: Hashable {
+        let service: ServiceKind
+        let pointSize: CGFloat
+    }
+
+    private static var cache: [CacheKey: NSImage] = [:]
+
     static func image(for service: ServiceKind, pointSize: CGFloat, tintColor: NSColor = .labelColor) -> NSImage {
+        let key = CacheKey(service: service, pointSize: pointSize)
+        if let cached = cache[key] {
+            return cached
+        }
+
         let dimension = max(pointSize, 10)
         let size = NSSize(width: dimension, height: dimension)
         let image = NSImage(size: size)
@@ -18,7 +30,8 @@ enum ServiceIconRenderer {
         NSGraphicsContext.current?.cgContext.addPath(path)
         NSGraphicsContext.current?.cgContext.fillPath()
 
-        image.isTemplate = false
+        image.isTemplate = true
+        cache[key] = image
         return image
     }
 
