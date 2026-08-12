@@ -187,7 +187,13 @@ final class AppModel: ObservableObject {
             secondaryWindow =
                 service.windows.first(where: { $0.title == "On-demand" })
                 ?? service.windows.first(where: { $0.title == "7d" })
-        case .codex, .claude:
+        case .codex:
+            let fiveHourWindow = service.windows.first(where: { $0.title == "5h" })
+            let weeklyWindow = service.windows.first(where: { $0.title == "7d" })
+
+            primaryWindow = fiveHourWindow ?? weeklyWindow ?? service.windows.first
+            secondaryWindow = fiveHourWindow == nil ? nil : weeklyWindow
+        case .claude:
             primaryWindow = service.windows.first(where: { $0.title == "5h" })
             secondaryWindow = service.windows.first(where: { $0.title == "7d" })
         }

@@ -80,6 +80,48 @@ func codexAppServerRateLimitResponseDecodesLiveShape() throws {
 }
 
 @Test
+func codexAppServerRateLimitResponseDecodesWeeklyOnlyShape() throws {
+    let payload = """
+    {
+      "rateLimits": {
+        "limitId": "codex",
+        "limitName": null,
+        "primary": {
+          "usedPercent": 4,
+          "windowDurationMins": 10080,
+          "resetsAt": 1787033412
+        },
+        "secondary": null,
+        "credits": null,
+        "planType": "prolite"
+      },
+      "rateLimitsByLimitId": {
+        "codex": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 4,
+            "windowDurationMins": 10080,
+            "resetsAt": 1787033412
+          },
+          "secondary": null,
+          "credits": null,
+          "planType": "prolite"
+        }
+      }
+    }
+    """
+
+    let response = try JSONDecoder().decode(CodexAppServerRateLimitsResponse.self, from: Data(payload.utf8))
+    let snapshot = try #require(ParsedCodexSnapshot(appServerResponse: response))
+
+    #expect(snapshot.planType == "prolite")
+    #expect(snapshot.windows.count == 1)
+    #expect(snapshot.windows[0].title == "7d")
+    #expect(Int(snapshot.windows[0].usedPercent.rounded()) == 4)
+}
+
+@Test
 func codexAppServerRateLimitResponseRecoversEmbeddedWhamUsageBodyFromProliteDecodeError() throws {
     let message = #"failed to fetch codex rate limits from https://chatgpt.com/backend-api/wham/usage: unknown variant `prolite`, expected one of `free`, `plus`, `pro`, `business`, `enterprise` at line 1 column 123 body={"plan_type":"prolite","rate_limit":{"primary_window":{"used_percent":37.4,"limit_window_seconds":18000,"reset_at":1774883900},"secondary_window":{"used_percent":12.1,"limit_window_seconds":604800,"reset_at":1775419382}},"additional_rate_limits":[],"credits":{"has_credits":true,"unlimited":false,"balance":"250"}}"#
 
@@ -372,6 +414,25 @@ func compactValueSupportsFiveHourAndWeeklyMode() {
     )
 
     #expect(AppModel.compactValue(for: service, mode: .fiveHourAndWeekly) == "17%/5%")
+}
+
+@Test
+func compactValueCodexFallsBackToWeeklyOnlyWindow() {
+    let service = ServiceSnapshot(
+        service: .codex,
+        displayName: "Codex",
+        accountDescription: nil,
+        state: .ready,
+        windows: [
+            UsageWindow(key: "codex_primary", title: "7d", detail: "Rolling limit", usedPercent: 4, resetsAt: nil),
+        ],
+        notices: [],
+        sourceDescription: "Codex app-server live rate limits",
+        capturedAt: nil
+    )
+
+    #expect(AppModel.compactValue(for: service, mode: .fiveHourOnly) == "4%")
+    #expect(AppModel.compactValue(for: service, mode: .fiveHourAndWeekly) == "4%")
 }
 
 @Test
