@@ -50,7 +50,11 @@ struct MenuBarView: View {
                 Text("Agent Stats")
                     .font(.headline.weight(.semibold))
 
-                if let fetchedAt = model.snapshot.fetchedAt {
+                if model.enabledServices.isEmpty {
+                    Text("Monitoring is off. Turn on a provider below.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let fetchedAt = model.snapshot.fetchedAt {
                     Text("Updated \(fetchedAt, style: .relative)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -72,6 +76,10 @@ struct MenuBarView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 8) {
+            ProviderMonitoringControls(model: model)
+
+            Divider()
+
             Toggle("Launch at Login", isOn: launchAtLoginBinding)
                 .toggleStyle(.switch)
 
@@ -103,8 +111,9 @@ struct MenuBarView: View {
                 Button("Refresh Now") {
                     model.refreshNow()
                 }
+                .disabled(model.enabledServices.isEmpty)
 
-                if model.helperStatus.canAttemptInstall {
+                if model.canInstallClaudeHelper {
                     Button("Install Claude Helper") {
                         model.installClaudeHelper()
                     }

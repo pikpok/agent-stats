@@ -8,6 +8,14 @@ enum ServiceKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    var displayName: String {
+        switch self {
+        case .codex: "Codex"
+        case .claude: "Claude Code"
+        case .cursor: "Cursor"
+        }
+    }
+
     var compactLabel: String {
         switch self {
         case .codex:

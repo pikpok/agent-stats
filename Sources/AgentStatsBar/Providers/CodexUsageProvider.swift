@@ -7,7 +7,8 @@ struct CodexUsageProvider: Sendable {
         .appendingPathComponent(".codex/sessions")
     private let liveFetcher = CodexAppServerRateLimitFetcher()
 
-    func fetch() async -> ServiceSnapshot {
+    func fetch() async -> ServiceSnapshot? {
+        guard !Task.isCancelled else { return nil }
         let auth = loadAuthStatus()
         guard auth.isLoggedIn else {
             return ServiceSnapshot(
@@ -26,6 +27,7 @@ struct CodexUsageProvider: Sendable {
             return liveSnapshot
         }
 
+        guard !Task.isCancelled else { return nil }
         guard let snapshot = latestSnapshot() else {
             return ServiceSnapshot(
                 service: .codex,
@@ -89,21 +91,18 @@ struct CodexUsageProvider: Sendable {
             return nil
         }
 
-        let files = enumerator.compactMap { item -> URL? in
-            guard let url = item as? URL, url.pathExtension == "jsonl" else {
-                return nil
-            }
-
-            return url
+        var files: [(url: URL, modified: Date)] = []
+        for case let url as URL in enumerator {
+            guard !Task.isCancelled else { return nil }
+            guard url.pathExtension == "jsonl" else { continue }
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            files.append((url, modified))
         }
-        .sorted { lhs, rhs in
-            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            return lhsDate > rhsDate
-        }
+        files.sort { $0.modified > $1.modified }
 
-        for url in files.prefix(25) {
-            guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+        for file in files.prefix(25) {
+            guard !Task.isCancelled else { return nil }
+            guard let contents = try? String(contentsOf: file.url, encoding: .utf8) else {
                 continue
             }
 

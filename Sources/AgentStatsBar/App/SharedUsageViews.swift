@@ -1,5 +1,24 @@
 import SwiftUI
 
+struct ProviderMonitoringControls: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Monitored providers")
+                .font(.subheadline.weight(.semibold))
+
+            ForEach(ServiceKind.allCases) { service in
+                Toggle(service.displayName, isOn: Binding(
+                    get: { model.enabledServices.contains(service) },
+                    set: { model.setMonitoring($0, for: service) }
+                ))
+            }
+            .toggleStyle(.switch)
+        }
+    }
+}
+
 struct ServiceSectionView: View {
     let service: ServiceSnapshot
 

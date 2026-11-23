@@ -29,8 +29,9 @@ final class AppModel: ObservableObject {
     private static let menuBarDisplayModeDefaultsKey = "menuBarDisplayMode"
 
     @Published private(set) var snapshot = AppSnapshot.empty
-    @Published private(set) var isRefreshing = false
-    @Published private(set) var helperStatus = ClaudeHelperInstallStatus.notInstalled
+    @Published private(set) var enabledServices: Set<ServiceKind>
+    @Published private var refreshTasks: [ServiceKind: Task<Void, Never>] = [:]
+    @Published private var helperStatus: ClaudeHelperInstallStatus?
     @Published private(set) var launchAtLoginEnabled = false
     @Published private(set) var launchAtLoginNeedsRefresh = false
     @Published private(set) var launchAtLoginTargetDescription = "Unavailable"
@@ -42,27 +43,34 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private let helperInstaller = ClaudeStatuslineHelperInstaller()
-    private let codexProvider = CodexUsageProvider()
-    private let cursorProvider = CursorUsageProvider()
     private let userDefaults: UserDefaults
     private let launchAtLoginManager: LaunchAtLoginManager
-    private lazy var claudeProvider = ClaudeUsageProvider(helperInstaller: helperInstaller)
+    private let monitoringPreferences: MonitoringPreferences
+    private let fetchUsage: @Sendable (ServiceKind) async -> ProviderUsage?
     private var pollingTask: Task<Void, Never>?
 
     init(
         userDefaults: UserDefaults = .standard,
-        launchAtLoginManager: LaunchAtLoginManager = LaunchAtLoginManager()
+        launchAtLoginManager: LaunchAtLoginManager = LaunchAtLoginManager(),
+        monitoringPreferences: MonitoringPreferences = MonitoringPreferences(),
+        fetchUsage: @escaping @Sendable (ServiceKind) async -> ProviderUsage? = ProviderUsage.fetch
     ) {
         self.userDefaults = userDefaults
         self.launchAtLoginManager = launchAtLoginManager
+        self.monitoringPreferences = monitoringPreferences
+        self.enabledServices = monitoringPreferences.enabledServices
+        self.fetchUsage = fetchUsage
         self.menuBarDisplayMode = Self.loadMenuBarDisplayMode(from: userDefaults)
-        refreshLaunchAtLoginStatus()
-        startPolling()
     }
 
     deinit {
         pollingTask?.cancel()
+    }
+
+    var isRefreshing: Bool { !refreshTasks.isEmpty }
+
+    var canInstallClaudeHelper: Bool {
+        enabledServices.contains(.claude) && helperStatus?.canAttemptInstall == true
     }
 
     var menuBarTitle: String {
@@ -81,9 +89,7 @@ final class AppModel: ObservableObject {
     }
 
     var menuBarSymbol: String {
-        snapshot.services.contains(where: { $0.state == .needsSetup || $0.state == .stale || $0.state == .error })
-            ? "exclamationmark.circle"
-            : "gauge.with.dots.needle.50percent"
+        shouldShowMenuBarSymbol ? "exclamationmark.circle" : "gauge.with.dots.needle.50percent"
     }
 
     var shouldShowMenuBarSymbol: Bool {
@@ -103,14 +109,35 @@ final class AppModel: ObservableObject {
     }
 
     func refreshNow() {
-        Task {
-            await refresh()
+        guard !enabledServices.isEmpty else { return }
+        transientMessage = nil
+        for service in enabledServices {
+            startRefresh(for: service)
+        }
+    }
+
+    func setMonitoring(_ enabled: Bool, for service: ServiceKind) {
+        guard enabledServices.contains(service) != enabled else { return }
+        monitoringPreferences.setEnabled(enabled, for: service)
+        if enabled {
+            enabledServices.insert(service)
+            startRefresh(for: service)
+            return
+        }
+
+        enabledServices.remove(service)
+        refreshTasks.removeValue(forKey: service)?.cancel()
+        let remaining = snapshot.services.filter { $0.service != service }
+        snapshot = remaining.isEmpty ? .empty : AppSnapshot(fetchedAt: snapshot.fetchedAt, services: remaining)
+        if service == .claude {
+            helperStatus = nil
         }
     }
 
     func installClaudeHelper() {
         Task {
-            let result = helperInstaller.install()
+            guard canInstallClaudeHelper else { return }
+            let result = ClaudeStatuslineHelperInstaller().install()
             transientMessage = result.userMessage
             await refresh()
         }
@@ -133,37 +160,45 @@ final class AppModel: ObservableObject {
         applyLaunchAtLoginStatus(launchAtLoginManager.status())
     }
 
-    private func startPolling() {
-        pollingTask = Task {
-            await refresh()
-
+    func startPolling(every interval: Duration = .seconds(60)) {
+        guard pollingTask == nil else { return }
+        pollingTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
-                await refresh()
+                self?.refreshNow()
+                try? await Task.sleep(for: interval)
             }
         }
     }
 
-    private func refresh() async {
-        guard !isRefreshing else {
-            return
+    func refresh() async {
+        refreshNow()
+        await waitForRefresh()
+    }
+
+    func waitForRefresh() async {
+        for task in refreshTasks.values {
+            await task.value
         }
+    }
 
-        isRefreshing = true
-        transientMessage = nil
-
-        let helperStatus = helperInstaller.status()
-        self.helperStatus = helperStatus
-
-        async let codexSnapshot = codexProvider.fetch()
-        async let claudeSnapshot = claudeProvider.fetch()
-        async let cursorSnapshot = cursorProvider.fetch()
-
-        let services = await [codexSnapshot, claudeSnapshot, cursorSnapshot]
-            .sorted { $0.service.sortOrder < $1.service.sortOrder }
-
-        snapshot = AppSnapshot(fetchedAt: Date(), services: services)
-        isRefreshing = false
+    private func startRefresh(for service: ServiceKind) {
+        guard refreshTasks[service] == nil else { return }
+        refreshTasks[service] = Task {
+            guard !Task.isCancelled else { return }
+            let usage = await fetchUsage(service)
+            // A cancelled request can finish after the same provider has been enabled again.
+            guard !Task.isCancelled else { return }
+            if let usage {
+                var services = snapshot.services.filter { $0.service != service }
+                services.append(usage.snapshot)
+                services.sort { $0.service.sortOrder < $1.service.sortOrder }
+                snapshot = AppSnapshot(fetchedAt: Date(), services: services)
+                if service == .claude {
+                    helperStatus = usage.claudeHelperStatus
+                }
+            }
+            refreshTasks[service] = nil
+        }
     }
 
     private func applyLaunchAtLoginStatus(_ status: LaunchAtLoginStatus) {

@@ -27,6 +27,7 @@ enum KeychainReader {
     private static let cache = SecretCache()
 
     static func readGenericPassword(service: String, account: String? = nil) -> String? {
+        guard !Task.isCancelled else { return nil }
         let cacheKey = CacheKey(service: service, account: account)
         if let cachedSecret = cachedSecret(for: cacheKey) {
             return cachedSecret
@@ -50,7 +51,7 @@ enum KeychainReader {
             status == errSecSuccess,
             let data = item as? Data
         else {
-            guard let secret = readGenericPasswordViaSecurity(service: service, account: account) else {
+            guard !Task.isCancelled, let secret = readGenericPasswordViaSecurity(service: service, account: account) else {
                 return nil
             }
 

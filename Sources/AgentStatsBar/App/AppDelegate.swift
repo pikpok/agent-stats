@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let model = AppModel()
+        model.refreshLaunchAtLoginStatus()
+        model.startPolling()
         self.model = model
         statusItemController = StatusItemController(model: model) { [weak self] in
             self?.showDashboard(nil)

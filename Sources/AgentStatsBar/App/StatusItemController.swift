@@ -13,7 +13,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private var globalClickMonitor: Any?
     private var statusItemRefreshScheduled = false
     private var lastRenderedItems: [MenuBarServiceItem] = []
-    private var lastRenderedWarning = false
+    private var lastRenderedWarning: Bool?
     private var cancellables: Set<AnyCancellable> = []
 
     init(model: AppModel, openDashboard: @escaping () -> Void) {

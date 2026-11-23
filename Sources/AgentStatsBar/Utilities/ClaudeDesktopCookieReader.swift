@@ -19,6 +19,7 @@ struct ClaudeDesktopCookieReader: Sendable {
             return nil
         }
 
+        guard !Task.isCancelled else { return nil }
         let rows = readCookieRows()
         guard !rows.isEmpty else {
             return nil

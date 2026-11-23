@@ -1,15 +1,10 @@
 import Foundation
 
 struct ClaudeUsageProvider: Sendable {
-    private let helperInstaller: ClaudeStatuslineHelperInstaller
     private let desktopFetcher = ClaudeDesktopUsageFetcher()
 
-    init(helperInstaller: ClaudeStatuslineHelperInstaller) {
-        self.helperInstaller = helperInstaller
-    }
-
-    func fetch() async -> ServiceSnapshot {
-        let helperStatus = helperInstaller.status()
+    func fetch(helperStatus: ClaudeHelperInstallStatus) async -> ServiceSnapshot? {
+        guard !Task.isCancelled else { return nil }
         let credentials = loadCredentials()
 
         guard let credentials else {
@@ -38,6 +33,7 @@ struct ClaudeUsageProvider: Sendable {
             return desktopSnapshot
         }
 
+        guard !Task.isCancelled else { return nil }
         return loadFallbackSnapshot(
             credentials: credentials,
             accountDescription: accountDescription,

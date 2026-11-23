@@ -1,25 +1,18 @@
 import Foundation
 
 enum SnapshotCLI {
-    static func dumpSnapshot() async {
-        let helperInstaller = ClaudeStatuslineHelperInstaller()
-        async let codexSnapshot = CodexUsageProvider().fetch()
-        async let claudeSnapshot = ClaudeUsageProvider(helperInstaller: helperInstaller).fetch()
-        async let cursorSnapshot = CursorUsageProvider().fetch()
-        let snapshot = AppSnapshot(
-            fetchedAt: Date(),
-            services: await [codexSnapshot, claudeSnapshot, cursorSnapshot]
-                .sorted { $0.service.sortOrder < $1.service.sortOrder }
-        )
+    @MainActor
+    static func dumpSnapshot(model: AppModel = AppModel(), write: (String) -> Void = { print($0) }) async {
+        await model.refresh()
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
 
         do {
-            let data = try encoder.encode(snapshot)
+            let data = try encoder.encode(model.snapshot)
             if let output = String(data: data, encoding: .utf8) {
-                print(output)
+                write(output)
             }
         } catch {
             fputs("Failed to encode snapshot: \(error)\n", stderr)

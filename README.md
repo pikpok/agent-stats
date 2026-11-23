@@ -32,7 +32,7 @@ The downloadable app bundle is unsigned, so on first launch macOS may ask you to
 ## Requirements
 
 - macOS 14 or newer
-- At least one of: Codex, Claude Code, or Cursor already set up on the Mac where you want to use Agent Stats
+- A local session for each provider whose usage you want to track
 
 ## What you get
 
@@ -48,6 +48,14 @@ The downloadable app bundle is unsigned, so on first launch macOS may ask you to
 | Codex | Recent local rate-limit snapshots, including short and weekly windows |
 | Claude Code | Desktop-session usage when available, with a local helper fallback |
 | Cursor | Local session/auth state plus dashboard usage windows |
+
+## Choose which providers to monitor
+
+All three providers start enabled. Open **Monitored providers** in the menu bar popover or under **Settings** in the dashboard. Agent Stats remembers each switch across launches.
+
+Turning a provider off cancels its current refresh and immediately removes its usage and warnings. Agent Stats checks credentials and fetches usage only for enabled providers. Turning a provider back on refreshes it immediately.
+
+With every switch off, **Agent Stats** stays in the menu bar. Click it to turn a provider back on.
 
 ## Privacy / how it works
 
@@ -123,7 +131,7 @@ swift run AgentStatsBar --disable-launch-at-login
 swift run AgentStatsBar --launch-at-login-status
 ```
 
-`--dump-snapshot` prints the current JSON snapshot to stdout, which is useful for debugging refresh issues.
+`--dump-snapshot` prints the current JSON snapshot for the providers enabled in the app. With every provider off, the `services` array is empty.
 
 ## Troubleshooting and limits
 

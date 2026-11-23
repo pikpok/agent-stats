@@ -18,8 +18,9 @@ enum CursorAuthReader: Sendable {
         static let stripeStatus = "cursorAuth/stripeSubscriptionStatus"
     }
 
-    static func loadSession() -> CursorAuthSession? {
-        let dbURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(Self.stateDBRelativePath)
+    static func loadSession(
+        from dbURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(stateDBRelativePath)
+    ) -> CursorAuthSession? {
         guard let items = readItemTable(from: dbURL), let accessToken = items[ItemKey.accessToken], !accessToken.isEmpty else {
             return nil
         }

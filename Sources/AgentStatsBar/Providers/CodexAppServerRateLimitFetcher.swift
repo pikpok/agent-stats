@@ -27,19 +27,23 @@ struct CodexAppServerRateLimitFetcher: Sendable {
         )
     }
 
+    @concurrent
     private static func fetchSynchronously() async -> CodexAppServerFetchResult? {
-        await Task.detached(priority: .utility) {
-            fetchSynchronouslyBlocking()
+        let process = Process()
+        return await withTaskCancellationHandler {
+            fetchSynchronouslyBlocking(process: process)
+        } onCancel: {
+            if process.isRunning {
+                process.terminate()
+            }
         }
-        .value
     }
 
-    private static func fetchSynchronouslyBlocking() -> CodexAppServerFetchResult? {
-        guard let executableURL = locateCodexExecutable() else {
+    private static func fetchSynchronouslyBlocking(process: Process) -> CodexAppServerFetchResult? {
+        guard !Task.isCancelled, let executableURL = locateCodexExecutable() else {
             return nil
         }
 
-        let process = Process()
         process.executableURL = executableURL
         process.arguments = ["app-server"]
 
@@ -50,6 +54,7 @@ struct CodexAppServerRateLimitFetcher: Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        guard !Task.isCancelled else { return nil }
         let completion = DispatchGroup()
         completion.enter()
         process.terminationHandler = { _ in
@@ -104,6 +109,7 @@ struct CodexAppServerRateLimitFetcher: Sendable {
     }
 
     private static func sendRequest(_ request: CodexAppServerRequest, to handle: FileHandle) -> Bool {
+        guard !Task.isCancelled else { return false }
         let encoder = JSONEncoder()
 
         guard let data = try? encoder.encode(request) else {

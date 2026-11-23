@@ -1,7 +1,8 @@
 import Foundation
 
 struct CursorUsageProvider: Sendable {
-    func fetch() async -> ServiceSnapshot {
+    func fetch() async -> ServiceSnapshot? {
+        guard !Task.isCancelled else { return nil }
         guard let session = CursorAuthReader.loadSession() else {
             return ServiceSnapshot(
                 service: .cursor,
@@ -109,6 +110,7 @@ struct CursorUsageProvider: Sendable {
                 sourceDescription: "Cursor dashboard (GET /api/usage, legacy)"
             )
         } catch {
+            guard !Task.isCancelled else { return nil }
             return snapshot(
                 for: sessionForRequests,
                 state: .error,
@@ -134,6 +136,7 @@ struct CursorUsageProvider: Sendable {
     }
 
     private static func performGET(url: URL, session: CursorAuthSession) async throws -> HTTPResult {
+        try Task.checkCancellation()
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 15

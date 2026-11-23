@@ -20,8 +20,10 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    overviewCards
-                    serviceStack
+                    if !model.enabledServices.isEmpty {
+                        overviewCards
+                        serviceStack
+                    }
                     settingsPanel
                 }
                 .padding(20)
@@ -51,6 +53,7 @@ struct DashboardView: View {
                 model.refreshNow()
             }
             .controlSize(.large)
+            .disabled(model.enabledServices.isEmpty)
 
             if model.isRefreshing {
                 ProgressView()
@@ -81,10 +84,14 @@ struct DashboardView: View {
 
     private var settingsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Startup & Setup")
+            Text("Settings")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {
+                ProviderMonitoringControls(model: model)
+
+                Divider()
+
                 Toggle("Launch at login", isOn: launchAtLoginBinding)
                     .toggleStyle(.switch)
 
@@ -107,7 +114,7 @@ struct DashboardView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    if model.helperStatus.canAttemptInstall {
+                    if model.canInstallClaudeHelper {
                         Button("Install Claude Helper") {
                             model.installClaudeHelper()
                         }
@@ -134,6 +141,10 @@ struct DashboardView: View {
     }
 
     private var headerSubtitle: String {
+        if model.enabledServices.isEmpty {
+            return "Monitoring is off. Turn on a provider below."
+        }
+
         if let fetchedAt = model.snapshot.fetchedAt {
             return "Updated \(fetchedAt.formatted(date: .abbreviated, time: .shortened)). The menu bar stays live in the background."
         }

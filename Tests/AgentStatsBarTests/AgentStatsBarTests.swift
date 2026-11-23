@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 @testable import AgentStatsBar
 
@@ -270,16 +271,26 @@ func compactValueSupportsFiveHourOnlyMode() {
 }
 
 @Test
-func cursorAuthReaderLoadsSessionFromLocalCursorInstall() {
-    // Verifies JWT + sqlite read on machines where Cursor is installed; no-op elsewhere.
-    let dbURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
-    guard FileManager.default.fileExists(atPath: dbURL.path) else {
-        return
-    }
+func cursorAuthReaderLoadsSessionFromFixtureDatabase() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).vscdb")
+    defer { try? FileManager.default.removeItem(at: url) }
+    var database: OpaquePointer?
+    try #require(sqlite3_open(url.path, &database) == SQLITE_OK)
+    defer { sqlite3_close(database) }
 
-    let session = CursorAuthReader.loadSession()
-    #expect(session != nil)
+    let subject = Data(#"{"sub":"auth0|test-user"}"#.utf8).base64EncodedString()
+    let token = "fixture.\(subject).fixture"
+    let sql = """
+        CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', '\(token)');
+        INSERT INTO ItemTable VALUES ('cursorAuth/cachedEmail', 'fixture@example.test');
+        """
+    try #require(sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK)
+
+    let session = try #require(CursorAuthReader.loadSession(from: url))
+    #expect(session.userId == "test-user")
+    #expect(session.accountEmail == "fixture@example.test")
+    #expect(session.workosSessionCookieValue == "test-user%3A%3A\(token)")
 }
 
 @Test

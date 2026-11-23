@@ -4,11 +4,11 @@ struct ClaudeDesktopUsageFetcher: Sendable {
     private let cookieReader = ClaudeDesktopCookieReader()
 
     func fetch(accountDescription: String?) async -> ServiceSnapshot? {
-        guard let session = cookieReader.loadClaudeSession() else {
+        guard !Task.isCancelled, let session = cookieReader.loadClaudeSession() else {
             return nil
         }
 
-        guard let response = await requestUsage(session: session) else {
+        guard !Task.isCancelled, let response = await requestUsage(session: session) else {
             return nil
         }
 

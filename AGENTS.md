@@ -11,7 +11,8 @@
 ## Repo shape
 - This is a single SwiftPM executable package (`Package.swift`): macOS 14+, Swift language mode 6, source in `Sources/AgentStatsBar/`, tests in `Tests/AgentStatsBarTests/`.
 - `Sources/AgentStatsBar/App/Main.swift` is the real entrypoint. It dispatches CLI-only modes before app launch; normal app launch opens the dashboard unless `--background` is present.
-- `Sources/AgentStatsBar/App/AppModel.swift` is the central coordinator: it starts the 60-second polling loop, fetches Codex/Claude/Cursor concurrently, sorts by `ServiceKind.sortOrder`, and derives the menu bar text.
+- `Sources/AgentStatsBar/App/AppModel.swift` coordinates the 60-second polling loop, manual refresh and `--dump-snapshot`. It fetches enabled providers concurrently, sorts by `ServiceKind.sortOrder`, and derives the menu bar text.
+- `MonitoringPreferences` stores one switch per `ServiceKind` in the shared `com.pikpok.AgentStatsBar.monitoring` defaults suite. Missing keys default to enabled. Construct providers and check Claude helper status only when fetching an enabled service.
 - `Sources/AgentStatsBar/Models/ServiceSnapshot.swift` is the shared provider/UI contract. Window titles (`5h`, `7d`, `Plan`, `Included`, `On-demand`) are semantic: `AppModel.compactValue` depends on them when choosing what appears in the menu bar.
 
 ## Service-specific gotchas
@@ -24,4 +25,5 @@
 ## Tests and generated outputs
 - Tests use Swift Testing (`import Testing`), not XCTest.
 - `Tests/AgentStatsBarTests/AgentStatsBarTests.swift` is the executable spec for provider payload shapes and menu bar precedence; update it whenever you change parsing or compact display logic.
+- `Tests/AgentStatsBarTests/ProviderMonitoringTests.swift` exercises monitoring with in-memory preferences and fake fetches. Cursor auth tests use a synthetic SQLite database.
 - `.build/` and `dist/` are generated outputs; do not hand-edit packaged app contents.
